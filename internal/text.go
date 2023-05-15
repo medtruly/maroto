@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bufio"
 	"strings"
 
 	"github.com/johnfercher/maroto/internal/fpdf"
@@ -44,24 +45,17 @@ func (s *text) Add(text string, cell Cell, textProp props.Text) {
 
 	// Apply Unicode before calc spaces
 	unicodeText := s.textToUnicode(text, textProp)
-	stringWidth := s.pdf.GetStringWidth(unicodeText)
-	words := strings.Split(unicodeText, " ")
 	accumulateOffsetY := 0.0
 
-	// If should add one line
-	if stringWidth < cell.Width || textProp.Extrapolate || len(words) == 1 {
-		s.addLine(textProp, cell.X, cell.Width, cell.Y, stringWidth, unicodeText)
-	} else {
-		lines := s.getLines(words, cell.Width)
+	lines := s.getLines(unicodeText, cell.Width, textProp.Extrapolate)
 
-		for index, line := range lines {
-			lineWidth := s.pdf.GetStringWidth(line)
-			_, _, fontSize := s.font.GetFont()
-			textHeight := fontSize / s.font.GetScaleFactor()
+	for index, line := range lines {
+		lineWidth := s.pdf.GetStringWidth(line)
+		_, _, fontSize := s.font.GetFont()
+		textHeight := fontSize / s.font.GetScaleFactor()
 
-			s.addLine(textProp, cell.X, cell.Width, cell.Y+float64(index)*textHeight+accumulateOffsetY, lineWidth, line)
-			accumulateOffsetY += textProp.VerticalPadding
-		}
+		s.addLine(textProp, cell.X, cell.Width, cell.Y+float64(index)*textHeight+accumulateOffsetY, lineWidth, line)
+		accumulateOffsetY += textProp.VerticalPadding
 	}
 
 	s.font.SetColor(originalColor)
@@ -75,34 +69,50 @@ func (s *text) GetLinesQuantity(text string, textProp props.Text, colWidth float
 	// Apply Unicode.
 	textTranslated := translator(text)
 
-	stringWidth := s.pdf.GetStringWidth(textTranslated)
-	words := strings.Split(textTranslated, " ")
-
-	// If should add one line.
-	if stringWidth < colWidth || textProp.Extrapolate || len(words) == 1 {
-		return 1
-	}
-
-	lines := s.getLines(words, colWidth)
+	lines := s.getLines(textTranslated, colWidth, textProp.Extrapolate)
 	return len(lines)
 }
 
-func (s *text) getLines(words []string, colWidth float64) []string {
-	currentlySize := 0.0
-	actualLine := 0
+func (s *text) getLines(text string, colWidth float64, extrapolate bool) []string {
 
-	lines := []string{}
-	lines = append(lines, "")
+	var lines []string
+	sc := bufio.NewScanner(strings.NewReader(text))
+	for sc.Scan() {
+		line := sc.Text()
 
-	for _, word := range words {
-		if s.pdf.GetStringWidth(word+" ")+currentlySize < colWidth {
-			lines[actualLine] = lines[actualLine] + word + " "
-			currentlySize += s.pdf.GetStringWidth(word + " ")
-		} else {
-			lines = append(lines, "")
-			actualLine++
-			lines[actualLine] = lines[actualLine] + word + " "
-			currentlySize = s.pdf.GetStringWidth(word + " ")
+		if s.pdf.GetStringWidth(line) < colWidth || extrapolate {
+			lines = append(lines, line)
+			continue
+		}
+
+		currentlySize := 0.0
+		var currentlyLine string
+		words := strings.Split(line, " ")
+		for i, word := range words {
+			if i != len(words)-1 {
+				// if not last word, add space
+				word += " "
+			}
+			wordWidth := s.pdf.GetStringWidth(word)
+			if wordWidth > colWidth {
+				// Single word is too long
+				lines = append(lines, word)
+				continue
+			}
+
+			if wordWidth+currentlySize < colWidth {
+				currentlyLine += word
+				currentlySize += wordWidth
+			} else {
+				// complete line and add word to new line
+				lines = append(lines, currentlyLine)
+				currentlyLine = word
+				currentlySize = wordWidth
+			}
+		}
+		if currentlyLine != "" {
+			// take care of the tail line
+			lines = append(lines, currentlyLine)
 		}
 	}
 
