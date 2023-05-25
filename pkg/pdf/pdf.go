@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"math"
 	"time"
 
 	"github.com/johnfercher/maroto/internal/fpdf"
@@ -661,11 +662,10 @@ func (s *PdfMaroto) drawLastFooter() {
 		_, pageHeight := s.Pdf.GetPageSize()
 		_, top, _, bottom := s.Pdf.GetMargins()
 
-		if s.offsetY+s.footerHeight < pageHeight-bottom-top {
-			totalOffsetY := int(s.offsetY + s.footerHeight)
-			maxOffsetPage := int(pageHeight - bottom - top)
-
-			s.Row(float64(maxOffsetPage-totalOffsetY), func() {
+		totalOffsetY := s.offsetY + s.footerHeight
+		maxOffsetPage := pageHeight - bottom - top
+		if totalOffsetY < maxOffsetPage {
+			s.Row(math.Floor(maxOffsetPage-totalOffsetY), func() {
 				s.ColSpace(uint(s.maxGridSum))
 			})
 
@@ -683,10 +683,10 @@ func (s *PdfMaroto) footer() {
 	_, pageHeight := s.Pdf.GetPageSize()
 	_, top, _, bottom := s.Pdf.GetMargins()
 
-	totalOffsetY := int(s.offsetY + s.footerHeight)
-	maxOffsetPage := int(pageHeight - bottom - top)
+	totalOffsetY := s.offsetY + s.footerHeight
+	maxOffsetPage := pageHeight - bottom - top
 
-	s.Row(float64(maxOffsetPage-totalOffsetY), func() {
+	s.Row(math.Floor(maxOffsetPage-totalOffsetY), func() {
 		s.ColSpace(uint(s.maxGridSum))
 	})
 
