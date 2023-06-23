@@ -13,6 +13,7 @@ import (
 type Text interface {
 	Add(text string, cell Cell, textProp props.Text)
 	GetLinesQuantity(text string, fontFamily props.Text, colWidth float64) int
+	GetTranslatedLines(text string, fontFamily props.Text, colWidth float64) []string
 }
 
 type text struct {
@@ -61,16 +62,19 @@ func (s *text) Add(text string, cell Cell, textProp props.Text) {
 	s.font.SetColor(originalColor)
 }
 
-// GetLinesQuantity retrieve the quantity of lines which a text will occupy to avoid that text to extrapolate a cell.
-func (s *text) GetLinesQuantity(text string, textProp props.Text, colWidth float64) int {
+// GetTranslatedLines returns lines of text translated to unicode to fit in a cell.
+func (s *text) GetTranslatedLines(text string, textProp props.Text, colWidth float64) []string {
 	translator := s.pdf.UnicodeTranslatorFromDescriptor("")
 	s.font.SetFont(textProp.Family, textProp.Style, textProp.Size)
 
 	// Apply Unicode.
 	textTranslated := translator(text)
+	return s.getLines(textTranslated, colWidth, textProp.Extrapolate)
+}
 
-	lines := s.getLines(textTranslated, colWidth, textProp.Extrapolate)
-	return len(lines)
+// GetLinesQuantity retrieve the quantity of lines which a text will occupy to avoid that text to extrapolate a cell.
+func (s *text) GetLinesQuantity(text string, textProp props.Text, colWidth float64) int {
+	return len(s.GetTranslatedLines(text, textProp, colWidth))
 }
 
 func (s *text) getLines(text string, colWidth float64, extrapolate bool) []string {
@@ -139,11 +143,11 @@ func (s *text) addLine(textProp props.Text, xColOffset, colWidth, yColOffset, te
 }
 
 func (s *text) textToUnicode(txt string, props props.Text) string {
-	if props.Family == consts.Arial ||
+	if (props.Family == consts.Arial ||
 		props.Family == consts.Helvetica ||
 		props.Family == consts.Symbol ||
 		props.Family == consts.ZapBats ||
-		props.Family == consts.Courier {
+		props.Family == consts.Courier) && !props.NoTranslate {
 		translator := s.pdf.UnicodeTranslatorFromDescriptor("")
 		return translator(txt)
 	}

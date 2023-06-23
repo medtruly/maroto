@@ -67,6 +67,8 @@ type Text struct {
 	VerticalPadding float64
 	// Color define the font color.
 	Color color.Color
+	// NoTranslate define if the text will be translated to unicode.
+	NoTranslate bool
 }
 
 // Line represents properties from a Line inside a cell.
